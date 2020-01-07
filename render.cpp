@@ -1,7 +1,7 @@
 #include <Bela.h>
 #include "feedback_comb_filter.h"
 #include "allpass_filter.h"
-
+#include "tapped_delay_line.h"
 #include <Scope.h>
 
 float sampleRate;
@@ -23,23 +23,34 @@ float allpass_times[4]={225.0f/44100.0f,
 
 
 feedback_comb_filter *fbcf_delay;
+tapped_delay_line *tdl;
 
 feedback_comb_filter *fbcf[8];
 allpass_filter *apf[4];
+int gOutputPin=0;
+int gOutputPin2=1;
 
 bool setup(BelaContext *context, void *userData)
 {
 	scope.setup(3, context->audioSampleRate);
 	sampleRate=context->audioSampleRate;
 	
+	tdl=new tapped_delay_line(sampleRate,1.0f,100);
+	
+	for(int i=0;i<100;i++)
+	{
+		float tap_time=(float)rand()/(float)RAND_MAX*0.1f; //0ms to 100ms;
+		tdl->set_tap_time(tap_time,i);
+	}
+	
 	for(int i=0;i<8;i++)
 	{
        fbcf[i]=new feedback_comb_filter(sampleRate, 10.0f);
        // fbcf[i]->set_delay_time(delay_times[i]);
 
-       fbcf[i]->set_delay_time(delay_times[i]*5.0f);
-       //fbcf[i]->set_feedback(0.84f);
-	   fbcf[i]->set_feedback(0.97f);
+       fbcf[i]->set_delay_time(delay_times[i]);
+       fbcf[i]->set_feedback(0.84f);
+	   //fbcf[i]->set_feedback(0.99f);
     
 	}
 	
@@ -50,6 +61,10 @@ bool setup(BelaContext *context, void *userData)
 	    apf[i]->set_feedback(0.5f);
 	}	
 	
+	pinMode(context, 0, gOutputPin, OUTPUT); // Set gOutputPin as output
+	pinMode(context, 0, gOutputPin2, OUTPUT); // Set gOutputPin as output
+
+
 	return true;
 	
 	
@@ -57,33 +72,65 @@ bool setup(BelaContext *context, void *userData)
 int count=10;
 
 
+int inputTimeout=0;
+int outputTimeout=0;
+
 void render(BelaContext *context, void *userData)
 {
 	float gIn0=0;
 	float out=0;
-	
+
 	
 	for(unsigned int n = 0; n < context->audioFrames; n++) 
 	{
+
+
 		if(count<100)
 		  gIn0=0;
 		else
 				gIn0 = audioRead(context, n, 0);
 	    out=0;
 	    
-	    float delayed=gIn0; //fbcf_delay->tick(gIn0);
+	    if(gIn0>0.2)
+	    {
+		 	 if(inputTimeout==0)
+		 	    digitalWrite(context, n, gOutputPin, 1);
+	    	 inputTimeout=5000;
+	    	  //rt_printf("input is high\n");
+	    }
+	    if(inputTimeout==1)
+	      digitalWrite(context, n, gOutputPin, 0);
+
+	    if(inputTimeout>0)
+	       inputTimeout--;
+	       
+	   out=tdl->tick(gIn0);   
 	    
-        //out=gIn0;
-	    for(int i=0;i<8;i++)
-	       out+=fbcf[i]->tick(delayed+gIn0)*0.1f;
+	 
+
+	   // for(int i=0;i<8;i++) //PROCESS FEEDBACK COMB FILTERS
+	   //    out+=fbcf[i]->tick(filter_input)*0.1f;
 	    
-	    for(int i=0;i<4;i++)
-	       out=apf[i]->tick(out);
+	    //for(int i=0;i<4;i++) //PROCESS ALL PASS FILTERS
+	    //   out=apf[i]->tick(out);
 	    
-	    out=gIn0*0.4f+out*0.6f; //add dry signal
-	    
-     	audioWrite(context, n, 0, out);
-     	audioWrite(context, n, 1, out);
+	    if(inputTimeout==0)
+     	    out=0;
+	
+	    if(fabs(out)>1.0f)
+	    {
+		 	 if(outputTimeout==0)
+		 	    digitalWrite(context, n, gOutputPin2, 1);
+	    	 outputTimeout=1000;
+	    }
+	    if(outputTimeout==1)
+	      digitalWrite(context, n, gOutputPin2, 0);
+
+	    if(outputTimeout>0)
+	       outputTimeout--;
+	       
+     	audioWrite(context, n, 0, tanh(out));
+     	audioWrite(context, n, 1, gIn0);
 
     	scope.log(gIn0,out);
 	}

@@ -22,7 +22,7 @@ private:
    float _feedback;
 
    int _read_pos;
-   int _write_pos;
+   //int _write_pos;
    
    float prev_val;
 };

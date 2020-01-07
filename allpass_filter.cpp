@@ -12,7 +12,7 @@ allpass_filter::allpass_filter(float sample_rate, float max_delay_seconds)
    printf("initializing allpass filter: max %f seconds\n",max_delay_seconds);
 
    _read_pos=0;
-   _write_pos=0;
+   //_write_pos=0;
    prev_val=0;
    
    _sample_rate=sample_rate;
@@ -59,10 +59,10 @@ float allpass_filter::tick(float input)
    
    float delay_input=input - _feedback*read_val; //used to use + operation, but in CCRMA says should be -
    
-   _delay_line[_write_pos]=delay_input;          //store the low passed value in the delay line
+   _delay_line[_read_pos]=delay_input;          //store the low passed value in the delay line
 
    _read_pos=(_read_pos+1) % _current_delay;
-   _write_pos=(_write_pos+1) % _current_delay;
+   //_write_pos=(_write_pos+1) % _current_delay; //don't need this is we aren't modulating
 
   return delay_input*_feedback+read_val;
 }
