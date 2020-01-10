@@ -25,18 +25,42 @@ tapped_delay_line::tapped_delay_line(float sample_rate, float max_delay_seconds,
    printf("   DONE!\n");
 }
 
+//https://beginnersbook.com/2017/09/cpp-program-to-check-prime-number-using-function/
+bool isPrime(int num){
+    bool flag=true;
+    for(int i = 2; i <= num / 2; i++) {
+       if(num % i == 0) {
+          flag = false;
+          break;
+       }
+    }
+    return flag;
+}
+
+
 void tapped_delay_line::set_tap_time(float tt, int tap_index)
 {
    unsigned int tap_time=(unsigned int)(tt*_sample_rate);
+   
+   bool primeResult=isPrime(tap_time);
+   
+   
+   while(primeResult==false)
+   {
+   	 tap_time++;
+   	 primeResult=isPrime(tap_time);
+   }
+   
    if(tap_time>_delay_line_max)
    {
    	  printf("error: tap time of %f is too long!\n",tt);
       return;
    }
+   printf("setting tap %d to: %d samples\n",tap_index,tap_time);
    _taps[tap_index]=tap_time;
-   
-   //printf("setting up tap %d to delay: %d\n",tap_index,tap_time);
 }
+
+
 
 void tapped_delay_line::set_delay_time(float dt)
 {
@@ -44,7 +68,7 @@ void tapped_delay_line::set_delay_time(float dt)
    
    if(new_delay<1) //sanity check. don't allow 0 length delay line 
       new_delay=1;
-   
+      
    if(_delay_line_max!=0)
    {
    	
@@ -65,7 +89,7 @@ float tapped_delay_line::tick(float input)
    
    for(int i=0;i<_max_taps;i++)
    {
-      out_val+=_delay_line[(_read_pos+_delay_line_max-_taps[i]) % _delay_line_max]; 
+      out_val+=(_delay_line[(_read_pos+_delay_line_max-_taps[i]) % _delay_line_max]); 
    }
 
    _delay_line[_read_pos]=input; //store latest incoming samples
