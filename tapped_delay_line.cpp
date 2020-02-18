@@ -42,14 +42,14 @@ void tapped_delay_line::set_tap_time(float tt, int tap_index)
 {
    unsigned int tap_time=(unsigned int)(tt*_sample_rate);
    
-   bool primeResult=isPrime(tap_time);
+  // bool primeResult=isPrime(tap_time);
    
    
-   while(primeResult==false)
-   {
-   	 tap_time++;
-   	 primeResult=isPrime(tap_time);
-   }
+   //while(primeResult==false)
+   //{
+   //	 tap_time++;
+   //	 primeResult=isPrime(tap_time);
+   //}
    
    if(tap_time>_delay_line_max)
    {

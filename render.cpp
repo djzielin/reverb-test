@@ -1,32 +1,18 @@
 #include <Bela.h>
-#include "feedback_comb_filter.h"
-#include "allpass_filter.h"
 #include "tapped_delay_line.h"
-#include <Scope.h>
-
+#include <libraries/Scope/Scope.h>
+#include "reverb.h"
 float sampleRate;
 
 Scope scope;
-float delay_times[8]={1116.0f/44100.0f,
-                      1188.0f/44100.0f,
-                      1277.0f/44100.0f,
-                      1356.0f/44100.0f,
-                      1422.0f/44100.0f,
-                      1491.0f/44100.0f, 
-                      1557.0f/44100.0f,
-                      1617.0f/44100.0f};
-                      
-float allpass_times[4]={225.0f/44100.0f,
-                        556.0f/44100.0f,
-                        441.0f/44100.0f,
-                        341.0f/44100.0f};
 
 
-feedback_comb_filter *fbcf_delay;
 tapped_delay_line *tdl;
+tapped_delay_line *td2;
 
-feedback_comb_filter *fbcf[8];
-allpass_filter *apf[4];
+
+reverb *ourRev;
+
 int gOutputPin=0;
 int gOutputPin2=1;
 
@@ -45,23 +31,16 @@ bool setup(BelaContext *context, void *userData)
 		tdl->set_tap_time(tap_time,i);
 	}
 	
-	for(int i=0;i<8;i++)
+	td2=new tapped_delay_line(sampleRate,1.0f,NUM_TAPS);
+	
+	for(int i=0;i<NUM_TAPS;i++)
 	{
-       fbcf[i]=new feedback_comb_filter(sampleRate, 1.0f);
-
-       fbcf[i]->set_delay_time(delay_times[i]*1.0f);
-       ///fbcf[i]->set_feedback(0.84f);
-	   fbcf[i]->set_feedback(0.99f);
-    
+		float tap_time=(float)rand()/(float)RAND_MAX*0.100f; //0ms to 100ms;
+		td2->set_tap_time(tap_time,i);
 	}
 	
-	for(int i=0;i<4;i++)
-	{
-		apf[i]=new allpass_filter(sampleRate,1.0f);
-	    apf[i]->set_delay_time(allpass_times[i]);
-	    apf[i]->set_feedback(0.5f);
-	}	
-	
+	ourRev=new reverb(sampleRate);
+ 
 	pinMode(context, 0, gOutputPin, OUTPUT); // Set gOutputPin as output
 	pinMode(context, 0, gOutputPin2, OUTPUT); // Set gOutputPin as output
 
@@ -74,71 +53,62 @@ int count=10;
 
 
 int inputTimeout=0;
+int inputTimeout2=0;
+
 int outputTimeout=0;
 
 void render(BelaContext *context, void *userData)
 {
 	float gIn0=0;
+	float gIn1=0;
+	
 	float out=0;
-
+    float out2=0;
 	
 	for(unsigned int n = 0; n < context->audioFrames; n++) 
 	{
-
-
-		if(count<100)
-		  gIn0=0;
-		else
-				gIn0 = audioRead(context, n, 0);
-	    out=0;
+        gIn0 = audioRead(context, n, 0);
+		gIn1 = audioRead(context, n, 1);
+       
 	    
-	    if(gIn0>0.1)
+	    if(gIn0>0.1 && inputTimeout==0)
 	    {
-		 	 if(inputTimeout==0)
-		 	    digitalWrite(context, n, gOutputPin, 1);
 	    	 inputTimeout=5000;
-	    	  //rt_printf("input is high\n");
 	    }
-	    if(inputTimeout==1)
-	      digitalWrite(context, n, gOutputPin, 0);
+	    
+	    if(gIn1>0.1 && inputTimeout2==0)
+	    {
+	    	 inputTimeout2=5000;
+	    }
+
 
 	    if(inputTimeout>0)
 	       inputTimeout--;
+	    if(inputTimeout2>0)
+	       inputTimeout2--;
 	       
-	   out=tdl->tick(gIn0)*0.25f+gIn0;   
-	    
-	  float tap_out=out;
+	   out=tdl->tick(gIn0)*0.05f+gIn0;   
+       out2=td2->tick(gIn1)*0.05f+gIn1;   
+
+       if(inputTimeout==0) out=0; //apply the gating
+	   if(inputTimeout2==0) out2=0;
 
 	  
-	    
-	  /*  if(inputTimeout==0) //gate it
-     	    out=0;
+	 /*   float tap_out=out2;
 	
 	    for(int i=0;i<8;i++) //PROCESS FEEDBACK COMB FILTERS
-	        out+=fbcf[i]->tick(tap_out)*0.1f;
+	        out2+=fbcf[i]->tick(tap_out)*0.1f;
 	    
 	    for(int i=0;i<4;i++) //PROCESS ALL PASS FILTERS
-	       out=apf[i]->tick(out);
+	       out2=apf[i]->tick(out2);
 	
 	*/
-	    //out+=tap_out; 
-	    
-	    if(fabs(out)>1.0f)
-	    {
-		 	 if(outputTimeout==0)
-		 	    digitalWrite(context, n, gOutputPin2, 1);
-	    	 outputTimeout=1000;
-	    }
-	    if(outputTimeout==1)
-	      digitalWrite(context, n, gOutputPin2, 0);
 
-	    if(outputTimeout>0)
-	       outputTimeout--;
 	       
      	audioWrite(context, n, 0, tanh(out));
-     	audioWrite(context, n, 1, gIn0);
+     	audioWrite(context, n, 1, tanh(out2));
 
-    	scope.log(gIn0,out);
+    	scope.log(gIn0,gIn1);
 	}
 	count++;
 }
